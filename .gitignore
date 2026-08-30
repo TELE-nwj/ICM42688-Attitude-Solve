@@ -1,0 +1,24 @@
+# Keil编译产物
+Objects/
+Listings/
+DebugConfig/
+
+# 编辑器/UI布局（用户相关）
+.vscode/
+Project.uvguix.*
+
+# 编译输出文件（兜底）
+*.o
+*.axf
+*.hex
+*.crf
+*.d
+*.lnp
+*.htm
+*.dep
+*.sct
+*.build_log.htm
+
+# 日志 / 临时
+*.log
+*.bak
