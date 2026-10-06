@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ICM42688 六轴姿态解算固件",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-icm42688-attitude-solve-20261006-172723/icm42688-attitude-solve.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/TELE-nwj/ICM42688-Attitude-Solve",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "81fe68ca655052131e9d590ec43f19a58310c5a4"
+    }
+  },
+  "components": [
+    {
+      "id": "oled",
+      "type": "external",
+      "label": "0.96\" OLED 模块",
+      "sublabel": "SSD1306 · I2C 从机",
+      "pos": [60, 140],
+      "size": [160, 64],
+      "sources": [
+        { "path": "Hardware/OLED.c", "line": 168, "end_line": 183, "label": "起始/终止时序由 MCU 位翻转" }
+      ]
+    },
+    {
+      "id": "icm",
+      "type": "external",
+      "label": "ICM-42688-P",
+      "sublabel": "六轴 IMU · SPI 从机",
+      "tag": "WHO_AM_I = 0x47",
+      "pos": [980, 140],
+      "size": [160, 70],
+      "sources": [
+        { "path": "Hardware/ICM42688.c", "line": 8, "end_line": 21, "label": "Bank0 寄存器地址与器件 ID" },
+        { "path": "Hardware/ICM42688.c", "line": 88, "end_line": 91, "label": "读 WHO_AM_I 确认芯片" }
+      ]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "main() 启动与显示",
+      "sublabel": "初始化 + 30Hz 刷屏",
+      "pos": [340, 400],
+      "size": [160, 64],
+      "sources": [
+        { "path": "User/main.c", "line": 10, "end_line": 14, "label": "上电初始化顺序" },
+        { "path": "User/main.c", "line": 22, "end_line": 33, "label": "显示循环，刷屏时关中断" }
+      ]
+    },
+    {
+      "id": "icmdrv",
+      "type": "backend",
+      "label": "ICM42688 驱动",
+      "sublabel": "寄存器读写 · 量程换算",
+      "pos": [660, 400],
+      "size": [160, 64],
+      "sources": [
+        { "path": "Hardware/ICM42688.c", "line": 63, "end_line": 81, "label": "软复位与量程/ODR 配置" },
+        { "path": "Hardware/ICM42688.c", "line": 144, "end_line": 165, "label": "原始计数换算物理量并扣零偏" },
+        { "path": "Hardware/ICM42688.c", "line": 173, "end_line": 190, "label": "上电静止零偏标定" }
+      ]
+    },
+    {
+      "id": "spi1",
+      "type": "backend",
+      "label": "SPI1 驱动",
+      "sublabel": "Mode 0 · 18MHz · 手动 CS",
+      "pos": [980, 400],
+      "size": [160, 64],
+      "sources": [
+        { "path": "Hardware/SPI.c", "line": 18, "end_line": 67, "label": "主模式 Mode0，72/4=18MHz" },
+        { "path": "Hardware/SPI.c", "line": 95, "end_line": 108, "label": "PA4 手动片选" }
+      ]
+    },
+    {
+      "id": "oleddrv",
+      "type": "backend",
+      "label": "OLED 驱动",
+      "sublabel": "软件 I2C · PB8/PB9",
+      "pos": [60, 400],
+      "size": [160, 64],
+      "sources": [
+        { "path": "Hardware/OLED.c", "line": 97, "end_line": 117, "label": "SCL/SDA 位翻转" },
+        { "path": "Hardware/OLED.c", "line": 140, "end_line": 153, "label": "开漏引脚初始化并释放总线" }
+      ]
+    },
+    {
+      "id": "tim3",
+      "type": "backend",
+      "label": "TIM3 200Hz 中断",
+      "sublabel": "5ms 时基 · 解算入口",
+      "pos": [660, 640],
+      "size": [160, 64],
+      "sources": [
+        { "path": "System/Timer.c", "line": 9, "end_line": 40, "label": "1MHz 计数 5ms，NVIC 配置" },
+        { "path": "User/stm32f10x_it.c", "line": 153, "end_line": 163, "label": "中断内取数并调用解算" }
+      ]
+    },
+    {
+      "id": "fusion",
+      "type": "backend",
+      "label": "Mahony 姿态解算",
+      "sublabel": "四元数 + 重力补偿",
+      "tag": "Kp = 1 · Ki = 0",
+      "pos": [980, 640],
+      "size": [160, 64],
+      "sources": [
+        { "path": "Fusion/imu_fusion.c", "line": 90, "end_line": 162, "label": "MahonyAHRSupdateIMU" },
+        { "path": "Fusion/imu_fusion.c", "line": 214, "end_line": 218, "label": "写全局欧拉角" },
+        { "path": "Fusion/imu_fusion.c", "line": 220, "end_line": 226, "label": "Yaw 跨 ±180° 累计圈数" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "STM32F103C8T6 · 片内固件",
+      "wraps": ["main", "icmdrv", "spi1", "oleddrv", "tim3", "fusion"]
+    }
+  ],
+  "connections": [
+    { "id": "main-init-drv", "from": "main", "to": "icmdrv", "label": "ICM_Init + 零偏标定" },
+    { "id": "drv-bus", "from": "icmdrv", "to": "spi1", "label": "SPI 读写寄存器" },
+    { "id": "bus-chip", "from": "spi1", "to": "icm", "label": "Mode 0 · 18MHz", "variant": "emphasis" },
+    { "id": "isr-read", "from": "tim3", "to": "icmdrv", "label": "ICM_GetGyro / GetAccel" },
+    { "id": "isr-fuse", "from": "tim3", "to": "fusion", "label": "gx,gy,gz / ax,ay,az" },
+    { "id": "main-start-isr", "from": "main", "to": "tim3", "label": "Timer_200Hz_Init()" },
+    { "id": "main-display", "from": "main", "to": "oleddrv", "label": "OLED_ShowFloatNum" },
+    { "id": "drv-i2c", "from": "oleddrv", "to": "oled", "label": "软件 I2C 位时序" },
+    { "id": "fuse-back", "from": "fusion", "to": "main", "label": "Imu_Pitch / Roll / Yaw 全局量", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "启动阶段",
+      "items": [
+        "main() 依次初始化 OLED、ICM、解算、200Hz 定时器",
+        "零偏标定：上电静止采样 100 次约 200ms 取平均，此后每次读数扣掉",
+        "陀螺 ±2000dps、加计 ±16g，ODR 均为 200Hz，双轴低噪声模式"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "运行阶段",
+      "items": [
+        "TIM3 每 5ms 触发一次：读六轴 → Mahony 解算 → 写全局欧拉角",
+        "主循环约 30Hz 读全局量刷 OLED，刷屏期间关中断以免打断软件 I2C",
+        "解算结果只经全局变量返回主循环，两条执行流之间没有队列或锁"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "读代码发现（README 未提及）",
+      "items": [
+        "Biquad 二阶滤波：6 组系数已初始化，但返回值被丢弃，未参与解算",
+        "Ki = 0，积分补偿分支不生效；无磁力计，Yaw 必然缓慢漂移",
+        "ICM_ReadWHOAMI() 返回值未被检查，芯片失联时不报错，只会输出错误角度"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "ICM42688 200Hz 姿态回路时序",
+    "locale": "zh-CN",
+    "output": ".archify/sequence-icm42688-200hz-loop-20261006-173242/icm42688-200hz-loop.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/TELE-nwj/ICM42688-Attitude-Solve",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "81fe68ca655052131e9d590ec43f19a58310c5a4"
+    }
+  },
+  "participants": [
+    {
+      "id": "tim3",
+      "type": "backend",
+      "label": "TIM3 中断",
+      "sublabel": "每 5ms 触发",
+      "sources": [
+        { "path": "System/Timer.c", "line": 9, "end_line": 40, "label": "5ms 时基与 NVIC" },
+        { "path": "User/stm32f10x_it.c", "line": 153, "end_line": 163, "label": "中断服务函数" }
+      ]
+    },
+    {
+      "id": "icmdrv",
+      "type": "backend",
+      "label": "ICM42688 驱动",
+      "sublabel": "读原始计数并换算",
+      "sources": [
+        { "path": "Hardware/ICM42688.c", "line": 144, "end_line": 165, "label": "换算物理量并扣零偏" }
+      ]
+    },
+    {
+      "id": "spi1",
+      "type": "backend",
+      "label": "SPI1 驱动",
+      "sublabel": "Mode 0 · 18MHz",
+      "sources": [
+        { "path": "Hardware/SPI.c", "line": 75, "end_line": 88, "label": "单字节收发" },
+        { "path": "Hardware/SPI.c", "line": 95, "end_line": 108, "label": "手动片选 PA4" }
+      ]
+    },
+    {
+      "id": "icm",
+      "type": "external",
+      "label": "ICM-42688-P",
+      "sublabel": "六轴 IMU 芯片",
+      "sources": [
+        { "path": "Hardware/ICM42688.c", "line": 8, "end_line": 21, "label": "数据寄存器地址" }
+      ]
+    },
+    {
+      "id": "fusion",
+      "type": "backend",
+      "label": "Mahony 解算",
+      "sublabel": "四元数姿态",
+      "sources": [
+        { "path": "Fusion/imu_fusion.c", "line": 198, "end_line": 226, "label": "Imu_Fusion_Update" }
+      ]
+    },
+    {
+      "id": "globals",
+      "type": "database",
+      "label": "全局欧拉角",
+      "sublabel": "中断写 / 主循环读",
+      "sources": [
+        { "path": "Fusion/imu_fusion.c", "line": 18, "end_line": 21, "label": "四个全局量声明" },
+        { "path": "Fusion/imu_fusion.c", "line": 215, "end_line": 217, "label": "中断内写入" }
+      ]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "显示循环",
+      "sublabel": "约 30Hz",
+      "sources": [
+        { "path": "User/main.c", "line": 22, "end_line": 33, "label": "主循环读全局量刷屏" }
+      ]
+    },
+    {
+      "id": "oled",
+      "type": "external",
+      "label": "OLED 模块",
+      "sublabel": "SSD1306 · I2C",
+      "sources": [
+        { "path": "Hardware/OLED.c", "line": 168, "end_line": 206, "label": "软件 I2C 时序" }
+      ]
+    }
+  ],
+  "segments": [
+    { "from": 152, "to": 300, "label": "中断内取数" },
+    { "from": 308, "to": 362, "label": "解算" },
+    { "from": 382, "to": 442, "label": "主循环显示" }
+  ],
+  "messages": [
+    { "id": "isr-read", "from": "tim3", "to": "icmdrv", "y": 162, "label": "ICM_GetAccel / ICM_GetGyro", "variant": "emphasis" },
+    { "id": "drv-bus", "from": "icmdrv", "to": "spi1", "y": 188, "label": "连读 accel + gyro 各 6 字节" },
+    { "id": "bus-wire", "from": "spi1", "to": "icm", "y": 214, "label": "SPI 收发（Mode 0 · 18MHz）" },
+    { "id": "chip-data", "from": "icm", "to": "spi1", "y": 242, "label": "原始 int16 × 6", "variant": "return" },
+    { "id": "bus-raw", "from": "spi1", "to": "icmdrv", "y": 268, "label": "原始计数", "variant": "return" },
+    { "id": "drv-phys", "from": "icmdrv", "to": "tim3", "y": 294, "label": "g / dps（已扣零偏）", "variant": "return" },
+    { "id": "isr-fuse", "from": "tim3", "to": "fusion", "y": 326, "label": "Imu_Fusion_Update(六轴)", "variant": "emphasis" },
+    { "id": "fuse-store", "from": "fusion", "to": "globals", "y": 354, "label": "写 Imu_Pitch / Roll / Yaw", "variant": "dashed" },
+    { "id": "main-read", "from": "main", "to": "globals", "y": 404, "label": "读三轴角度" },
+    { "id": "main-show", "from": "main", "to": "oled", "y": 432, "label": "OLED_ShowFloatNum + Update" }
+  ],
+  "activations": [
+    { "participant": "tim3", "from": 155, "to": 330, "type": "backend" },
+    { "participant": "icmdrv", "from": 160, "to": 298, "type": "backend" },
+    { "participant": "spi1", "from": 184, "to": 272, "type": "backend" },
+    { "participant": "icm", "from": 210, "to": 246, "type": "external" },
+    { "participant": "fusion", "from": 321, "to": 358, "type": "backend" },
+    { "participant": "globals", "from": 350, "to": 408, "type": "database" },
+    { "participant": "main", "from": 400, "to": 436, "type": "backend" },
+    { "participant": "oled", "from": 428, "to": 442, "type": "external" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "一个 5ms 里发生什么",
+      "items": [
+        "中断先向驱动要数据，驱动经 SPI 连读两段各 6 字节，凑成一次完整的六轴采样",
+        "驱动把 int16 计数按量程换算成物理量，并在换算时扣掉上电标定的零偏",
+        "整条取数链路是同步阻塞的：SPI 每字节都忙等 TXE / RXNE，没有 DMA 或中断"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "全局变量是唯一的耦合点",
+      "items": [
+        "中断与主循环之间没有队列、没有信号量，只有四个 float 全局量",
+        "中断只写、主循环只读，方向单一，所以不存在写写冲突",
+        "但主循环刷软件 I2C 时会关中断，那段时间的采样会被推迟，200Hz 不再是严格等间隔"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "此 revision 下值得注意",
+      "items": [
+        "Biquad 六路滤波已初始化，但返回值被丢弃，Mahony 吃的是原始值（滤波未接线）",
+        "Ki = 0，积分分支不生效；无磁力计，Yaw 只有陀螺积分，必然缓慢漂移",
+        "整条显示路径走软件 I2C，是主循环里最耗时的一段，也是关中断的主要理由"
+      ]
+    }
+  ]
+}
